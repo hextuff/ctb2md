@@ -110,6 +110,7 @@ class Node:
     def render_recursive(self, depth: int):
         result = f"{'#'*depth} {self.name}    \n{self.render_markdown()}    \n"
         if len(self.children) != 0:
+            self.children = self.children[::-1]
             for child in self.children:
                 result += child.render_recursive(depth+1)
         return result
