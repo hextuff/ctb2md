@@ -1,6 +1,6 @@
 import sqlite3
 import sys
-from typing import Tuple, List
+from typing import Tuple, List, Dict
 import xml.etree.ElementTree as ET
 from pathlib import Path
 import hashlib
@@ -94,7 +94,10 @@ class Node:
         cursor = db.cursor()
         cursor.execute("SELECT * FROM node")
         node_data = cursor.fetchall()
-        return [Node(raw_data) for raw_data in node_data]
+        result = {}
+        for node in [Node(raw_data) for raw_data in node_data]:
+            result[node.node_id] = node
+        return result
 
     def register_image(self, image: Image):
         self.images.append(image)
@@ -110,7 +113,8 @@ class Node:
     def render_recursive(self, depth: int):
         result = f"{'#'*depth} {self.name}    \n{self.render_markdown()}    \n"
         if len(self.children) != 0:
-            self.children = self.children[::-1]
+            # bug:后来新增节点时顺序会颠倒
+            #self.children = self.children[::-1]
             for child in self.children:
                 result += child.render_recursive(depth+1)
         return result
@@ -135,7 +139,7 @@ class Children:
 
 
 class Ctb2md:
-    nodes: List[Node]
+    nodes: Dict[int,Node]
     images: List[Image]
     children: List[Children]
     image_dir: str
@@ -166,7 +170,7 @@ class Ctb2md:
     def load_all_data(self):
         self.nodes = Node.get_all_nodes(self.db)
         self.images = Image.get_all_images(self.db, self.image_dir, self.raw_image_dir)
-        for node in self.nodes:
+        for _, node in self.nodes.items():
             if not node.has_image:
                 continue
             for image in self.images:
@@ -175,9 +179,9 @@ class Ctb2md:
         self.children = Children.get_all_children(self.db)
         for child in self.children:
             if child.father_id == 0:
-                self.root_nodes.append(self.nodes[child.node_id - 1])
+                self.root_nodes.append(self.nodes[child.node_id])
                 continue
-            self.nodes[child.father_id - 1].children.append(self.nodes[child.node_id - 1])
+            self.nodes[child.father_id].children.append(self.nodes[child.node_id])
 
     def render(self) -> str:
         return "".join([node.render_recursive(1) for node in self.root_nodes])
